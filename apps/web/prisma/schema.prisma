@@ -16,6 +16,7 @@ model User {
   updatedAt      DateTime       @updatedAt
   connections    Connection[]
   invoices       Invoice[]
+  clients        Client[]
   settings       UserSettings?
   subscription   Subscription?
 }
@@ -23,19 +24,21 @@ model User {
 model Subscription {
   id                   String   @id @default(cuid())
   userId                String   @unique
+  user                  User    @relation(fields: [userId], references: [id])
   stripeCustomerId      String   @unique
-  stripeSubscriptionId  String   @unique
-  plan                 String   @default("trial") // "trial" | "monthly" | "annual"
-  status               String   @default("trialing") // "trialing" | "active" | "past_due" | "canceled"
+  stripeSubscriptionId   String   @unique
+  plan                  String   @default("trial")
+  status                String   @default("trialing")
   trialEndsAt           DateTime?
-  currentPeriodEnd     DateTime
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  currentPeriodEnd      DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model Client {
   id        String    @id @default(cuid())
   userId    String
+  user      User      @relation(fields: [userId], references: [id])
   name      String
   email     String?
   invoices  Invoice[]
@@ -45,6 +48,7 @@ model Client {
 model UserSettings {
   id            String  @id @default(cuid())
   userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id])
   defaultTone   String  @default("friendly")
   timezone      String  @default("America/New_York")
   emailFromName String  @default("Invoice Chase")
@@ -55,12 +59,12 @@ model Connection {
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id])
-  provider     String    // "gmail" | "quickbooks"
+  provider     String
   accessToken  String
   refreshToken String?
   realmId      String?
   expiresAt    DateTime?
-  status       String    @default("active") // "active" | "revoked"
+  status       String    @default("active")
   createdAt    DateTime  @default(now())
   invoices     Invoice[]
 }
@@ -80,7 +84,7 @@ model Invoice {
   currency      String      @default("USD")
   issueDate     DateTime
   dueDate       DateTime
-  status        String      @default("pending") // "pending" | "overdue" | "paid"
+  status        String      @default("pending")
   quickbooksId  String?
   drafts        Draft[]
   sentLogs      SentLog[]
@@ -95,7 +99,7 @@ model Draft {
   subject    String
   body       String
   tone       String    @default("friendly")
-  status     String    @default("draft") // "draft" | "pending" | "sent"
+  status     String    @default("draft")
   sentAt     DateTime?
   sentLogs   SentLog[]
   createdAt  DateTime  @default(now())
