@@ -462,3 +462,23 @@ footer a:hover { color: var(--accent-hover); }
   .section { padding: 3rem 1.5rem; }
   .faq-grid { grid-template-columns: 1fr; }
 }
+
+/* Billing */
+.billing-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; }
+.pricing-badge { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+.free-badge { background: rgba(234,179,8,0.1); border-color: rgba(234,179,8,0.3); color: #fbbf24; }
+.usage-bar { background: var(--surface2); border-radius: 8px; height: 8px; overflow: hidden; margin-top: 0.5rem; }
+.usage-fill { height: 100%; background: var(--accent); border-radius: 8px; transition: width 0.3s; }
+
+/* Composer */
+.composer { display: flex; flex-direction: column; gap: 1rem; }
+.tone-selector { display: flex; gap: 0.75rem; }
+.tone-btn { flex: 1; padding: 0.6rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-muted); cursor: pointer; font-size: 0.85rem; font-weight: 600; text-align: center; transition: all 0.15s; }
+.tone-btn.active { border-color: var(--accent); background: rgba(99,102,241,0.1); color: var(--accent-hover); }
+.email-body { width: 100%; min-height: 200px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; color: var(--text); font-family: 'Inter', sans-serif; font-size: 0.9rem; line-height: 1.6; resize: vertical; }
+.subject-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1rem; color: var(--text); font-size: 0.9rem; }
+
+/* Client page */
+.client-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.15s; }
+.client-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.client-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #a78bfa); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; color: white; flex-shrink: 0; }
