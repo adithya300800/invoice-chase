@@ -1,32 +1,26 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { stripe } from '@/lib/stripe'
-import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { stripe } from '@/lib/stripe'
 
 export async function POST() {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     include: { subscription: true },
   })
 
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (!user?.subscription?.stripeCustomerId) {
+    return NextResponse.json({ error: 'No subscription found' }, { status: 400 })
   }
 
-  if (!user.stripeCustomerId) {
-    return NextResponse.json({ error: 'No billing account found' }, { status: 400 })
-  }
-
-  const portalSession = await stripe.billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
+  const portal = await stripe.billingPortal.sessions.create({
+    customer: user.subscription.stripeCustomerId,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
   })
 
-  return NextResponse.json({ url: portalSession.url })
+  return NextResponse.json({ url: portal.url })
 }

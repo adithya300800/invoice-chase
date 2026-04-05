@@ -1,0 +1,88 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.backBtn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.backBtn:hover { color: var(--text); }
+h1 { font-size: 1.5rem; font-weight: 800; }
+.center { text-align: center; padding: 4rem; color: var(--text-muted); }
+
+.invoiceCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.invoiceDetails {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+.client { font-weight: 700; font-size: 1rem; }
+.danger { color: #f87171; background: rgba(239,68,68,0.1); padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 700; }
+.warn { color: #fbbf24; background: rgba(234,179,8,0.1); padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 700; }
+
+.section { margin-bottom: 1.5rem; }
+.label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); display: block; margin-bottom: 0.5rem; }
+.labelRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+
+.toneSelector { display: flex; gap: 0.75rem; }
+.toneBtn {
+  flex: 1; padding: 0.6rem; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-muted); cursor: pointer;
+  font-size: 0.85rem; font-weight: 600; text-align: center; transition: all 0.15s;
+}
+.toneBtn.active { border-color: var(--accent); background: rgba(99,102,241,0.1); color: var(--accent-hover); }
+
+.subjectInput {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.6rem 1rem; color: var(--text); font-size: 0.9rem;
+}
+.emailBody {
+  width: 100%; min-height: 200px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem; color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 0.9rem; line-height: 1.6; resize: vertical;
+}
+
+.regenBtn {
+  background: none; border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.75rem;
+  color: var(--text-muted); cursor: pointer; font-size: 0.8rem; font-weight: 600;
+}
+.regenBtn:hover { border-color: var(--accent); color: var(--accent-hover); }
+.regenBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+.cancelBtn {
+  padding: 0.7rem 1.5rem; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); cursor: pointer; font-weight: 600;
+}
+.cancelBtn:hover { border-color: var(--text-muted); color: var(--text); }
+.sendBtn {
+  padding: 0.7rem 1.5rem; border-radius: 8px; border: none;
+  background: var(--accent); color: white; cursor: pointer; font-weight: 600;
+}
+.sendBtn:hover { background: var(--accent-hover); }
+.sendBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.historyList { display: flex; flex-direction: column; gap: 0.5rem; }
+.historyItem {
+  display: flex; justify-content: space-between; padding: 0.5rem 0.75rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem;
+  color: var(--text-muted);
+}

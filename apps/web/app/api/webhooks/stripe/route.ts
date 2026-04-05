@@ -1,25 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import type Stripe from 'stripe'
+import Stripe from 'stripe'
 
-export async function POST(request: NextRequest) {
-  const body = await request.text()
-  const signature = request.headers.get('stripe-signature')
-  
-  if (!signature) {
-    return NextResponse.json({ error: 'No signature' }, { status: 400 })
-  }
+export async function POST(req: NextRequest) {
+  const body = await req.text()
+  const sig = req.headers.get('stripe-signature')
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
+  if (!sig || !webhookSecret) return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET ?? ''
-    )
+    event = stripe.webhooks.constructEvent(body, sig, webhookSecret)
   } catch (err) {
-    console.error('Webhook signature verification failed:', err)
+    console.error('Stripe webhook signature verification failed:', err)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
@@ -27,68 +22,51 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription
-        await prisma.subscription.upsert({
-          where: { stripeCustomerId: subscription.customer as string },
-          update: {
-            stripeSubscriptionId: subscription.id,
-            plan: subscription.items.data[0]?.price?.nickname?.toLowerCase() ?? 'monthly',
-            status: subscription.status,
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            trialEndsAt: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
-          },
-          create: {
-            stripeCustomerId: subscription.customer as string,
-            stripeSubscriptionId: subscription.id,
-            userId: '', // Will be linked via lookup
-            plan: subscription.items.data[0]?.price?.nickname?.toLowerCase() ?? 'monthly',
-            status: subscription.status,
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            trialEndsAt: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
+        const sub = event.data.object as Stripe.Subscription
+        const customerId = sub.customer as string
+        const plan = sub.items.data[0]?.price?.nickname?.toLowerCase() ?? 'monthly'
+        const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'canceled'
+        await prisma.subscription.updateMany({
+          where: { stripeCustomerId: customerId },
+          data: {
+            stripeSubscriptionId: sub.id,
+            plan,
+            status,
+            currentPeriodEnd: new Date(sub.current_period_end * 1000),
           },
         })
         break
       }
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription
+        const sub = event.data.object as Stripe.Subscription
         await prisma.subscription.updateMany({
-          where: { stripeCustomerId: subscription.customer as string },
-          data: { status: 'canceled' },
+          where: { stripeCustomerId: sub.customer as string },
+          data: { status: 'canceled', plan: 'free' },
         })
         break
       }
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice
-        // Optionally link to user and mark as paid
-        if (invoice.subscription) {
-          const sub = await stripe.subscriptions.retrieve(invoice.subscription as string)
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.CheckoutSession
+        if (session.mode === 'subscription' && session.subscription) {
+          const sub = await stripe.subscriptions.retrieve(session.subscription as string)
           await prisma.subscription.updateMany({
-            where: { stripeSubscriptionId: invoice.subscription as string },
-            data: { status: 'active' },
-          })
-        }
-        break
-      }
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice
-        if (invoice.subscription) {
-          await prisma.subscription.updateMany({
-            where: { stripeSubscriptionId: invoice.subscription as string },
-            data: { status: 'past_due' },
+            where: { stripeCustomerId: session.customer as string },
+            data: {
+              stripeSubscriptionId: sub.id,
+              status: 'active',
+              plan: 'monthly',
+              currentPeriodEnd: new Date(sub.current_period_end * 1000),
+            },
           })
         }
         break
       }
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        console.log('Unhandled Stripe event:', event.type)
     }
   } catch (err) {
-    console.error('Error processing webhook:', err)
-    return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
+    console.error('Webhook handler error:', err)
+    return NextResponse.json({ error: 'Handler error' }, { status: 500 })
   }
 
   return NextResponse.json({ received: true })

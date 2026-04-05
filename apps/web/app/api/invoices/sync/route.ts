@@ -1,145 +1,79 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { getARReport, parseARReport, refreshQBToken } from '@/lib/quickbooks'
 
-async function syncFromQuickBooks(userId: string) {
-  const connection = await prisma.connection.findFirst({
-    where: { userId, provider: 'quickbooks' },
-    orderBy: { createdAt: 'desc' },
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    include: { connections: { where: { provider: 'quickbooks', status: 'active' } } },
   })
 
-  if (!connection) {
-    return { error: 'No QuickBooks connection found' }
+  const qbConn = user?.connections[0]
+  if (!qbConn) {
+    return NextResponse.json({ error: 'QuickBooks not connected' }, { status: 400 })
   }
 
-  const accessToken = connection.accessToken ?? ''
-  const realmId = connection.realmId ?? ''
-
-  // Fetch AR Aging report from QuickBooks
-  const response = await fetch(
-    `https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/AccountsReceivableAging`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    }
-  )
-
-  if (!response.ok) {
-    return { error: `QuickBooks API error: ${response.status}` }
+  // Check token expiry
+  let accessToken = qbConn.accessToken
+  if (qbConn.expiresAt && new Date(qbConn.expiresAt) < new Date()) {
+    const refreshed = await refreshQBToken({ accessToken, refreshToken: qbConn.refreshToken ?? '' })
+    accessToken = refreshed.accessToken
+    await prisma.connection.update({
+      where: { id: qbConn.id },
+      data: { accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt },
+    })
   }
 
-  const data = await response.json()
-  const rows = data?.Rows?.Row ?? []
+  // Get realmId from the connection (stored as refreshToken split or a separate field)
+  const realmId = (qbConn.refreshToken ?? '').split('|')[0] || process.env.QUICKBOOKS_REALM_ID ?? ''
+
   let synced = 0
   let totalAmount = 0
 
-  for (const row of rows) {
-    if (row.type !== 'Data') continue
-    const cells = row.Col_Data?.Col_data ?? []
+  try {
+    const report = await getARReport(accessToken, realmId)
+    const invoices = parseARReport(report)
 
-    const clientName = cells[0]?.value ?? 'Unknown'
-    const totalDue = parseFloat(cells[1]?.value ?? '0')
-    const invoiceNumber = cells[2]?.value ?? `QB-${Date.now()}`
-    const dueDateStr = cells[3]?.value ?? ''
-    const status = cells[4]?.value ?? 'overdue'
+    for (const inv of invoices) {
+      if (!inv.DocNumber || inv.Balance <= 0) continue
+      const dueDate = new Date(inv.DueDate)
+      if (dueDate > new Date()) continue // not yet overdue
 
-    const dueDate = dueDateStr ? new Date(dueDateStr) : new Date()
-    const today = new Date()
-    const isOverdue = dueDate < today
-
-    if (isOverdue && totalDue > 0) {
       await prisma.invoice.upsert({
         where: {
-          userId_invoiceNumber: { userId, invoiceNumber },
+          id: `${user!.id}-${inv.DocNumber}`
         },
         update: {
-          clientName,
-          amount: totalDue,
-          dueDate,
           status: 'overdue',
-          connectionId: connection.id,
+          amount: inv.Balance,
+          dueDate,
         },
         create: {
-          userId,
-          invoiceNumber,
-          clientName,
-          amount: totalDue,
+          id: `${user!.id}-${inv.DocNumber}`,
+          userId: user!.id,
+          clientName: inv.CustomerName,
+          invoiceNumber: inv.DocNumber,
+          amount: inv.Balance,
+          issueDate: new Date(inv.TxnDate),
           dueDate,
           status: 'overdue',
-          connectionId: connection.id,
+          quickbooksId: inv.CustomerId,
         },
       })
       synced++
-      totalAmount += totalDue
+      totalAmount += inv.Balance
     }
+  } catch (err) {
+    console.error('QB sync error:', err)
+    return NextResponse.json({ error: 'Sync failed', detail: String(err) }, { status: 500 })
   }
 
-  return { synced, total: synced, totalAmount }
-}
-
-async function syncFromGmail(userId: string) {
-  // Gmail invoice parsing - look for invoice emails in sent folder
-  // This would use Gmail API to fetch recent sent emails and parse for invoice data
-  // For now, return a placeholder indicating this feature
-  return { synced: 0, total: 0, totalAmount: 0, note: 'Gmail sync not yet configured' }
-}
-
-export async function POST() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  })
-
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
-
-  // Try QuickBooks sync
-  const qbResult = await syncFromQuickBooks(user.id)
-
-  if (qbResult.error) {
-    return NextResponse.json(qbResult, { status: 400 })
-  }
-
-  return NextResponse.json({
-    synced: qbResult.synced,
-    total: qbResult.total,
-    totalAmount: qbResult.totalAmount,
-    provider: 'quickbooks',
-  })
-}
-
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  })
-
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
-
-  // Return current invoice count and total overdue
-  const overdueInvoices = await prisma.invoice.findMany({
-    where: { userId: user.id, status: 'overdue' },
-  })
-
-  const totalAmount = overdueInvoices.reduce((sum, inv) => sum + inv.amount, 0)
-
-  return NextResponse.json({
-    totalOverdue: overdueInvoices.length,
-    totalAmount,
-    lastSynced: null,
-  })
+  return NextResponse.json({ synced, totalAmount })
 }

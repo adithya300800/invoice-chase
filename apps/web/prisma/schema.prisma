@@ -3,119 +3,102 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
 }
 
 model User {
-  id             String         @id @default(cuid())
-  email          String         @unique
-  name           String?
-  stripeCustomerId String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  connections    Connection[]
-  invoices       Invoice[]
-  clients        Client[]
-  settings       UserSettings?
-  subscription   Subscription?
-}
-
-model Subscription {
-  id                   String   @id @default(cuid())
-  userId                String   @unique
-  user                  User    @relation(fields: [userId], references: [id])
-  stripeCustomerId      String   @unique
-  stripeSubscriptionId   String   @unique
-  plan                  String   @default("trial")
-  status                String   @default("trialing")
-  trialEndsAt           DateTime?
-  currentPeriodEnd      DateTime
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-}
-
-model Client {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  name      String
-  email     String?
-  invoices  Invoice[]
-  createdAt DateTime  @default(now())
-}
-
-model UserSettings {
-  id            String  @id @default(cuid())
-  userId        String  @unique
-  user          User    @relation(fields: [userId], references: [id])
-  defaultTone   String  @default("friendly")
-  timezone      String  @default("America/New_York")
-  emailFromName String  @default("Invoice Chase")
-  reminderDays  Int     @default(7)
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  createdAt     DateTime      @default(now())
+  connections   Connection[]
+  invoices      Invoice[]
+  settings      UserSettings?
+  subscription  Subscription?
 }
 
 model Connection {
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id])
-  provider     String
-  accessToken  String
+  provider     String    // "gmail" | "quickbooks"
+  accessToken String
   refreshToken String?
-  realmId      String?
   expiresAt    DateTime?
-  status       String    @default("active")
-  createdAt    DateTime  @default(now())
-  invoices     Invoice[]
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  invoices    Invoice[]
 }
 
 model Invoice {
-  id            String       @id @default(cuid())
+  id            String        @id @default(cuid())
   userId        String
-  user          User         @relation(fields: [userId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
   connectionId  String?
-  connection    Connection?  @relation(fields: [connectionId], references: [id])
-  clientId      String?
-  client        Client?      @relation(fields: [clientId], references: [id])
+  connection    Connection?   @relation(fields: [connectionId], references: [id])
   clientName    String
-  clientEmail   String?
   invoiceNumber String
   amount        Float
-  currency      String      @default("USD")
+  currency      String        @default("USD")
   issueDate     DateTime
   dueDate       DateTime
-  status        String      @default("pending")
+  status        String        @default("pending") // "pending" | "overdue" | "paid"
   quickbooksId  String?
-  drafts        Draft[]
-  sentLogs      SentLog[]
-  createdAt     DateTime    @default(now())
+  clientId      String?
+  client        Client?       @relation(fields: [clientId], references: [id])
+  drafts        FollowUpDraft[]
+  createdAt     DateTime      @default(now())
 }
 
-model Draft {
+model Client {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  email     String?
+  invoices  Invoice[]
+  createdAt DateTime  @default(now())
+}
+
+model FollowUpDraft {
   id         String    @id @default(cuid())
-  userId     String
-  invoiceId  String?
-  invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
+  invoiceId  String
+  invoice    Invoice   @relation(fields: [invoiceId], references: [id])
+  emailBody  String
   subject    String
-  body       String
-  tone       String    @default("friendly")
-  status     String    @default("draft")
+  tone       String    @default("friendly") // "friendly" | "firm" | "formal"
+  status     String    @default("draft") // "draft" | "sent" | "ignored"
   sentAt     DateTime?
-  sentLogs   SentLog[]
+  sentLog    SentLog?
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
 }
 
 model SentLog {
-  id             String    @id @default(cuid())
-  userId         String
-  draftId        String?
-  draft          Draft?    @relation(fields: [draftId], references: [id])
-  invoiceId      String?
-  invoice        Invoice?  @relation(fields: [invoiceId], references: [id])
-  recipientEmail String
-  subject        String
-  sentAt         DateTime  @default(now())
-  opens          Int       @default(0)
-  clicks         Int       @default(0)
+  id              String       @id @default(cuid())
+  followUpDraftId String       @unique
+  followUpDraft   FollowUpDraft @relation(fields: [followUpDraftId], references: [id])
+  recipientEmail  String
+  sentAt          DateTime     @default(now())
+}
+
+model Subscription {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  stripeCustomerId    String   @unique
+  stripeSubscriptionId String   @unique
+  plan                String   @default("trial") // "trial" | "monthly" | "annual"
+  status              String   @default("trialing") // "trialing" | "active" | "past_due" | "canceled"
+  trialEndsAt         DateTime?
+  currentPeriodEnd    DateTime
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model UserSettings {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  defaultTone   String  @default("friendly")
+  timezone      String  @default("America/New_York")
+  emailFromName String  @default("Invoice Chase")
+  reminderDays  Int     @default(7)
 }

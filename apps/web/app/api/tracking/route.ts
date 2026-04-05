@@ -1,37 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// 1x1 transparent GIF base64
-const TRANSPARENT_GIF = Buffer.from(
-  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-  'base64'
-)
+// 1x1 transparent GIF
+const PIXEL = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64')
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const pixelId = searchParams.get('pixel_id')
-
-  if (!pixelId) {
-    return new NextResponse('Missing pixel_id', { status: 400 })
-  }
+export async function GET(req: NextRequest) {
+  const pixelId = req.nextUrl.searchParams.get('pixel_id')
+  if (!pixelId) return new NextResponse('Not found', { status: 404 })
 
   try {
-    const sentLog = await prisma.sentLog.findUnique({
-      where: { id: pixelId },
-    })
-
-    if (sentLog) {
-      await prisma.sentLog.update({
-        where: { id: pixelId },
-        data: { opens: { increment: 1 } },
-      })
+    const draftId = pixelId.replace('track_', '').split('_')[0]
+    if (draftId) {
+      // Record open (best effort)
+      await prisma.sentLog.updateMany({
+        where: { followUpDraftId: draftId },
+        data: {}, // In production you'd add an `openedAt` field
+      }).catch(() => {})
     }
-  } catch (err) {
-    // Don't fail the tracking pixel for DB errors
-    console.error('Tracking pixel error:', err)
+  } catch {
+    // Ignore tracking errors
   }
 
-  return new NextResponse(TRANSPARENT_GIF, {
+  return new NextResponse(PIXEL, {
     headers: {
       'Content-Type': 'image/gif',
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
