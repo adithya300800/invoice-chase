@@ -1,4 +1,4 @@
-x
 node_modules/
 .next/
+.env.local
 apps/web/node_modules/
