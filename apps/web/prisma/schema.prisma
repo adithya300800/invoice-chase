@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String?
+  createdAt     DateTime     @default(now())
+  connections   Connection[]
+  invoices      Invoice[]
+}
+
+model Connection {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  provider     String   // "gmail" | "quickbooks"
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  status       String   @default("active") // "active" | "revoked"
+  createdAt    DateTime @default(now())
+  invoices     Invoice[]
+}
+
+model Invoice {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  connectionId  String?
+  connection    Connection? @relation(fields: [connectionId], references: [id])
+  clientName    String
+  invoiceNumber String
+  amount        Float
+  currency      String    @default("USD")
+  issueDate     DateTime
+  dueDate       DateTime
+  status        String    @default("pending") // "pending" | "overdue" | "paid"
+  quickbooksId  String?
+  drafts        FollowUpDraft[]
+  createdAt     DateTime  @default(now())
+}
+
+model FollowUpDraft {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  emailBody  String
+  subject    String
+  tone      String    @default("friendly") // "friendly" | "firm" | "formal"
+  status     String   @default("draft") // "draft" | "sent" | "ignored"
+  sentAt     DateTime?
+  sentLog    SentLog?
+  createdAt  DateTime @default(now())
+}
+
+model SentLog {
+  id              String       @id @default(cuid())
+  followUpDraftId String       @unique
+  followUpDraft   FollowUpDraft @relation(fields: [followUpDraftId], references: [id])
+  recipientEmail  String
+  sentAt          DateTime     @default(now())
+}
